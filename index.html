@@ -1,52 +1,410 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control De Obras</title>
-</head>
-<body>
+import React, { useState, useEffect } from 'react';
+import { Zap, Plus, ShoppingCart, Trash2, Settings, Info, AlertTriangle, CheckCircle } from 'lucide-react';
 
-    <header>
-        <nav>
-            <ul class="main-nav">
-                <li><a href="#inicio">Inicio</a></li>
-                <li><a href="#quienes-somos">Quiénes somos</a></li>
-                <li><a href="#que-ofrecemos">Qué ofrecemos</a></li>
-            <li><a href="registro.html"> Registro</a></li>
+// --- Datos Iniciales Basados en la Imagen ---
+const INITIAL_MATERIALS = [
+  { id: 1, name: 'Base para Medidor (Monofásico)', type: 'Infraestructura', price: 450, description: 'Base socket 4 terminales, 100A', image: '⚡' },
+  { id: 2, name: 'Interruptor de Seguridad 2x30A', type: 'Protección', price: 380, description: 'Caja gris tipo Royer, incluye fusibles', image: '🔌' },
+  { id: 3, name: 'Cable THW Calibre 8 (Rojo)', type: 'Conductor', price: 25, description: 'Para acometida (Fase)', image: '🔴' },
+  { id: 4, name: 'Cable THW Calibre 8 (Negro)', type: 'Conductor', price: 25, description: 'Para acometida (Neutro)', image: '⚫' },
+  { id: 5, name: 'Cable THW Calibre 10', type: 'Conductor', price: 18, description: 'Para circuitos derivados', image: '🔵' },
+  { id: 6, name: 'Varilla de Tierra (Copperweld)', type: 'Seguridad', price: 220, description: 'Conector para puesta a tierra', image: '🌱' },
+  { id: 7, name: 'Centro de Carga (QOD)', type: 'Distribución', price: 150, description: 'Para pastillas termomagnéticas', image: '📦' },
+  { id: 8, name: 'Foco LED 10W', type: 'Carga', price: 45, description: 'Iluminación estándar', image: '💡' },
+];
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('simulate'); // simulate, catalog, add
+  const [materials, setMaterials] = useState(INITIAL_MATERIALS);
+  const [cart, setCart] = useState({});
+  
+  // Estados del Simulador
+  const [mainSwitch, setMainSwitch] = useState(false); // El interruptor de cuchillas/seguridad
+  const [breakerSwitch, setBreakerSwitch] = useState(false); // El breaker del circuito
+  const [isGridActive, setIsGridActive] = useState(true); // Simula si hay luz en la calle
+
+  // Lógica de flujo de corriente
+  const powerAtMeter = isGridActive;
+  const powerAtMainOut = powerAtMeter && mainSwitch;
+  const powerAtBulb = powerAtMainOut && breakerSwitch;
+
+  // --- Componente: Catálogo ---
+  const Catalog = () => {
+    const addToCart = (id) => {
+      setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+    };
+
+    const removeFromCart = (id) => {
+      setCart(prev => {
+        const newCart = { ...prev };
+        if (newCart[id] > 1) newCart[id]--;
+        else delete newCart[id];
+        return newCart;
+      });
+    };
+
+    const totalCost = Object.entries(cart).reduce((acc, [id, qty]) => {
+      const item = materials.find(m => m.id === parseInt(id));
+      return acc + (item ? item.price * qty : 0);
+    }, 0);
+
+    return (
+      <div className="p-4 animate-fade-in">
+        <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-lg shadow-sm">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Selección de Materiales</h2>
+            <p className="text-gray-500 text-sm">Basado en especificaciones NEC/NOM</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-500">Presupuesto Estimado</p>
+            <p className="text-3xl font-bold text-green-600">${totalCost.toFixed(2)}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {materials.map((item) => (
+            <div key={item.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow flex flex-col">
+              <div className="flex justify-between items-start mb-2">
+                <div className="text-4xl">{item.image}</div>
+                <span className="px-2 py-1 bg-gray-100 text-xs rounded-full text-gray-600 font-semibold uppercase">{item.type}</span>
+              </div>
+              <h3 className="font-bold text-lg text-gray-800">{item.name}</h3>
+              <p className="text-gray-500 text-sm mb-4 flex-grow">{item.description}</p>
+              <div className="flex justify-between items-center mt-auto">
+                <span className="font-bold text-blue-600">${item.price}</span>
+                <div className="flex items-center gap-2">
+                  {cart[item.id] > 0 && (
+                    <>
+                      <button onClick={() => removeFromCart(item.id)} className="p-1 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 size={16}/></button>
+                      <span className="font-bold w-6 text-center">{cart[item.id]}</span>
+                    </>
+                  )}
+                  <button onClick={() => addToCart(item.id)} className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1">
+                    <Plus size={16}/> Añadir
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // --- Componente: Agregar Material ---
+  const AddMaterial = () => {
+    const [formData, setFormData] = useState({ name: '', type: 'General', price: '', description: '' });
+    const [success, setSuccess] = useState(false);
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      const newItem = {
+        id: materials.length + 1,
+        ...formData,
+        price: parseFloat(formData.price),
+        image: '🔧'
+      };
+      setMaterials([...materials, newItem]);
+      setSuccess(true);
+      setFormData({ name: '', type: 'General', price: '', description: '' });
+      setTimeout(() => setSuccess(false), 3000);
+    };
+
+    return (
+      <div className="p-4 max-w-2xl mx-auto">
+        <div className="bg-white p-6 rounded-xl shadow-md">
+          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+            <Plus className="text-blue-600" /> Agregar Nuevo Material
+          </h2>
+          
+          {success && (
+            <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg flex items-center gap-2 animate-pulse">
+              <CheckCircle size={20} /> Material agregado al inventario correctamente.
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Material</label>
+              <input required type="text" className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ej: Cinta de aislar" />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+                  <option>Conductor</option>
+                  <option>Protección</option>
+                  <option>Carga</option>
+                  <option>Infraestructura</option>
+                  <option>Herramienta</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Precio Unitario ($)</label>
+                <input required type="number" min="0" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="0.00" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción Técnica</label>
+              <textarea required rows="3" className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Especificaciones, calibre, capacidad..." />
+            </div>
+
+            <button type="submit" className="w-full py-3 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 transition-colors">
+              Guardar en Inventario
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Componente: Simulador Visual (Canvas SVG) ---
+  const Simulator = () => {
+    return (
+      <div className="flex flex-col lg:flex-row h-full gap-4 p-2">
+        {/* Panel de Control */}
+        <div className="lg:w-1/4 bg-slate-800 text-white p-6 rounded-xl shadow-lg flex flex-col gap-6">
+          <h2 className="text-xl font-bold border-b border-slate-600 pb-2 mb-2 flex items-center gap-2">
+            <Settings size={20} /> Panel de Control
+          </h2>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+              <span className="text-sm font-medium">Red Eléctrica (CFE)</span>
+              <button onClick={() => setIsGridActive(!isGridActive)} 
+                className={`w-12 h-6 rounded-full p-1 transition-colors ${isGridActive ? 'bg-green-500' : 'bg-gray-500'}`}>
+                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${isGridActive ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+              <div>
+                <span className="block text-sm font-medium">Interruptor Seguridad</span>
+                <span className="text-xs text-gray-400">Caja Gris (Fusibles)</span>
+              </div>
+              <button onClick={() => setMainSwitch(!mainSwitch)} disabled={!isGridActive}
+                className={`w-12 h-6 rounded-full p-1 transition-colors ${mainSwitch ? 'bg-red-500' : 'bg-gray-500'} ${!isGridActive && 'opacity-50 cursor-not-allowed'}`}>
+                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${mainSwitch ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center p-3 bg-slate-700 rounded-lg">
+              <div>
+                <span className="block text-sm font-medium">Termomagnético</span>
+                <span className="text-xs text-gray-400">Centro de Carga</span>
+              </div>
+              <button onClick={() => setBreakerSwitch(!breakerSwitch)} disabled={!mainSwitch}
+                className={`w-12 h-6 rounded-full p-1 transition-colors ${breakerSwitch ? 'bg-blue-500' : 'bg-gray-500'} ${!mainSwitch && 'opacity-50 cursor-not-allowed'}`}>
+                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${breakerSwitch ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-auto bg-slate-900 p-4 rounded-lg border border-slate-700">
+            <h3 className="font-bold text-yellow-400 flex items-center gap-2 mb-2">
+              <Info size={16} /> Estado del Sistema
+            </h3>
+            <ul className="text-sm space-y-2 text-gray-300">
+              <li className="flex justify-between"><span>Voltaje Entrada:</span> <span className={isGridActive ? "text-green-400" : "text-red-400"}>{isGridActive ? '127V' : '0V'}</span></li>
+              <li className="flex justify-between"><span>Fase (Rojo):</span> <span className={powerAtBulb ? "text-red-400 font-bold animate-pulse" : "text-gray-500"}>{powerAtBulb ? 'ACTIVA' : 'INACTIVA'}</span></li>
+              <li className="flex justify-between"><span>Neutro (Negro):</span> <span className="text-gray-400">Continuo</span></li>
             </ul>
-           
-        </nav>
-    </header>
+          </div>
+        </div>
 
-    <main>
-        <section id="inicio">
-            <h2>Inicio</h2>
-            <p>Bienvenido a nuestra página principal. Aquí encontrarás lo más destacado.</p>
-        </section>
+        {/* Diagrama Interactivo SVG */}
+        <div className="lg:w-3/4 bg-white rounded-xl shadow-lg relative overflow-hidden border border-gray-200 flex items-center justify-center">
+          {/* Título flotante */}
+          <div className="absolute top-4 left-4 bg-white/90 p-2 rounded backdrop-blur-sm border border-gray-200 z-10">
+             <h3 className="font-bold text-slate-800">Diagrama de Instalación (Monofásico)</h3>
+             <p className="text-xs text-slate-500">Visualización lógica de la imagen provista</p>
+          </div>
 
-        <section id="quienes-somos">
-            <h2>Quiénes somos</h2>
-            <p>Somos un equipo dedicado a...</p>
-            <p>Nuestra misión es...</p>
-        </section>
+          <svg viewBox="0 0 800 500" className="w-full h-full max-w-4xl select-none">
+            <defs>
+              <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L9,3 z" fill="#666" />
+              </marker>
+            </defs>
 
-        <section id="que-ofrecemos">
-            <h2>Qué ofrecemos</h2>
-            <ul>
-                <li>Servicio A</li>
-                <li>Servicio B</li>
-                <li>Producto C</li>
-            </ul>
-        </section>
+            {/* --- CABLES / WIRING --- */}
+            
+            {/* 1. Acometida (Poste a Medidor) */}
+            {/* Neutro */}
+            <path d="M 50 50 L 150 50 L 150 180" fill="none" stroke="#000" strokeWidth="4" />
+            {/* Fase (Rojo) - Siempre viva si hay red */}
+            <path d="M 50 70 L 130 70 L 130 180" fill="none" 
+              stroke={isGridActive ? "#ff0000" : "#550000"} 
+              strokeWidth="4" strokeDasharray={isGridActive ? "5,5" : "0"} className={isGridActive ? "animate-dash" : ""} />
+            
+            {/* 2. Medidor a Interruptor de Seguridad */}
+            {/* Neutro */}
+            <path d="M 150 280 L 150 350 L 350 350 L 350 250" fill="none" stroke="#000" strokeWidth="4" />
+            {/* Fase (Controlada por la Red) */}
+            <path d="M 130 280 L 130 330 L 330 330 L 330 250" fill="none" 
+               stroke={powerAtMeter ? "#ff0000" : "#550000"} 
+               strokeWidth="4" className={powerAtMeter ? "animate-dash" : ""} />
 
-    </main>
+            {/* 3. Interruptor de Seguridad a Centro de Carga */}
+            {/* Neutro */}
+            <path d="M 400 150 L 450 150 L 450 350 L 600 350 L 600 250" fill="none" stroke="#000" strokeWidth="4" />
+             {/* Fase (Controlada por Interruptor Principal) */}
+            <path d="M 400 180 L 430 180 L 430 330 L 580 330 L 580 250" fill="none" 
+              stroke={powerAtMainOut ? "#ff0000" : "#550000"} 
+              strokeWidth="4" className={powerAtMainOut ? "animate-dash" : ""} />
 
-    <footer>
-        <p style="text-align: center; padding: 20px; background: #f4f4f4; margin-top: 20px;">
-            &copy; 2026 Tu Empresa. Todos los derechos reservados.
-        </p>
-    </footer>
+            {/* 4. Centro de Carga a Foco */}
+            {/* Neutro */}
+            <path d="M 650 150 L 700 150 L 700 100" fill="none" stroke="#000" strokeWidth="3" />
+            {/* Fase (Controlada por Breaker) */}
+            <path d="M 650 180 L 720 180 L 720 100" fill="none" 
+              stroke={powerAtBulb ? "#ff0000" : "#550000"} 
+              strokeWidth="3" className={powerAtBulb ? "animate-dash" : ""} />
 
-</body>
-</html>
+            {/* 5. Tierra Física (Verde) */}
+            <path d="M 140 280 L 140 450" fill="none" stroke="#22c55e" strokeWidth="3" strokeDasharray="4,2" />
+            <path d="M 130 450 L 150 450" fill="none" stroke="#8B4513" strokeWidth="2" /> {/* Suelo */}
+            <line x1="140" y1="450" x2="140" y2="480" stroke="#b87333" strokeWidth="6" /> {/* Varilla */}
+
+
+            {/* --- COMPONENTES / DEVICES --- */}
+
+            {/* Medidor */}
+            <g transform="translate(100, 180)">
+               <circle cx="40" cy="50" r="50" fill="#e2e8f0" stroke="#475569" strokeWidth="2" />
+               <rect x="15" y="35" width="50" height="30" fill="white" stroke="#cbd5e1" />
+               <text x="40" y="55" textAnchor="middle" fontSize="10" fontFamily="monospace">02738 kWh</text>
+               <text x="40" y="90" textAnchor="middle" fontSize="10" fill="#64748b">MEDIDOR</text>
+               {/* Disco girando */}
+               <circle cx="40" cy="20" r="5" fill={powerAtMainOut ? "red" : "#333"} className={powerAtMainOut ? "animate-ping" : ""} />
+            </g>
+
+            {/* Interruptor de Seguridad (Caja Gris) */}
+            <g transform="translate(330, 100)">
+              <rect x="0" y="0" width="80" height="120" rx="4" fill="#94a3b8" stroke="#475569" strokeWidth="2" />
+              <rect x="20" y="20" width="40" height="40" fill="#333" rx="2" />
+              <text x="40" y="110" textAnchor="middle" fontSize="10" fill="white" fontWeight="bold">ROYER</text>
+              {/* Palanca */}
+              <rect x="80" y="30" width="10" height="40" rx="2" fill="#64748b" 
+                transform={`rotate(${mainSwitch ? 130 : 0} 80 70)`} style={{transition: 'transform 0.3s'}} cursor="pointer" onClick={()=>setMainSwitch(!mainSwitch)}/>
+              {/* Etiqueta Fusibles */}
+              <path d="M 30 30 L 50 50 M 50 30 L 30 50" stroke="red" strokeWidth="2" opacity={mainSwitch ? 1 : 0.3} />
+            </g>
+
+            {/* Centro de Carga (QOD) */}
+            <g transform="translate(580, 100)">
+              <rect x="0" y="0" width="80" height="120" rx="2" fill="#cbd5e1" stroke="#475569" strokeWidth="2" />
+              <rect x="10" y="10" width="60" height="100" fill="#f1f5f9" stroke="#e2e8f0" />
+              {/* Pastilla Breaker */}
+              <rect x="20" y="30" width="40" height="20" rx="2" fill="#1e293b" cursor="pointer" onClick={()=>setBreakerSwitch(!breakerSwitch)}/>
+              <rect x={breakerSwitch ? "40" : "20"} y="30" width="20" height="20" rx="2" fill={breakerSwitch ? "#22c55e" : "#ef4444"} 
+                style={{transition: 'x 0.2s'}} pointerEvents="none"/>
+              <text x="40" y="115" textAnchor="middle" fontSize="9" fill="#64748b">Q20</text>
+            </g>
+
+            {/* Carga (Foco) */}
+            <g transform="translate(680, 20)">
+               <path d="M30,50 Q10,50 10,30 Q10,0 30,0 Q50,0 50,30 Q50,50 30,50" 
+                 fill={powerAtBulb ? "#fbbf24" : "#e2e8f0"} stroke="#d97706" strokeWidth="1" 
+                 className={powerAtBulb ? "drop-shadow-[0_0_15px_rgba(251,191,36,0.8)]" : ""} />
+               <rect x="20" y="50" width="20" height="15" fill="#94a3b8" />
+               <path d="M20,65 L25,75 L35,75 L40,65" fill="none" stroke="#64748b" />
+               
+               {/* Rayos de luz si está prendido */}
+               {powerAtBulb && (
+                 <g stroke="#fbbf24" strokeWidth="2">
+                   <line x1="10" y1="10" x2="-5" y2="-5" />
+                   <line x1="50" y1="10" x2="65" y2="-5" />
+                   <line x1="30" y1="-5" x2="30" y2="-20" />
+                 </g>
+               )}
+            </g>
+
+            {/* Etiquetas de Cables */}
+            <text x="180" y="65" fontSize="12" fill="#dc2626" fontWeight="bold">Calibre 8 (Fase)</text>
+            <text x="200" y="320" fontSize="12" fill="#000" fontWeight="bold">Conductor a Interruptor</text>
+            <text x="450" y="320" fontSize="12" fill="#000" fontWeight="bold">Calibre 10 (Alimentación)</text>
+            <text x="160" y="460" fontSize="12" fill="#15803d" fontWeight="bold">Puesta a Tierra</text>
+
+          </svg>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
+      <style>{`
+        .animate-dash {
+          stroke-dasharray: 10;
+          animation: dash 1s linear infinite;
+        }
+        @keyframes dash {
+          to {
+            stroke-dashoffset: -20;
+          }
+        }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out forwards;
+        }
+      `}</style>
+
+      {/* Header */}
+      <header className="bg-slate-900 text-white p-4 shadow-md sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center">
+          <div className="flex items-center gap-3 mb-4 md:mb-0">
+            <div className="bg-yellow-500 p-2 rounded-lg text-slate-900">
+              <Zap size={24} fill="currentColor" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-wide">TECNO HOUSE</h1>
+              <p className="text-xs text-slate-400">Simulador de Instalaciones Eléctricas</p>
+            </div>
+          </div>
+          
+          <nav className="flex bg-slate-800 p-1 rounded-lg">
+            <button 
+              onClick={() => setActiveTab('catalog')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'catalog' ? 'bg-white text-slate-900 shadow' : 'text-slate-300 hover:text-white'}`}>
+              <ShoppingCart size={16} className="inline mr-2"/> Catálogo
+            </button>
+            <button 
+              onClick={() => setActiveTab('add')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'add' ? 'bg-white text-slate-900 shadow' : 'text-slate-300 hover:text-white'}`}>
+              <Plus size={16} className="inline mr-2"/> Agregar Material
+            </button>
+            <button 
+              onClick={() => setActiveTab('simulate')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'simulate' ? 'bg-yellow-500 text-slate-900 shadow' : 'text-slate-300 hover:text-white'}`}>
+              <Zap size={16} className="inline mr-2"/> Simulación
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto p-4">
+        {activeTab === 'catalog' && <Catalog />}
+        {activeTab === 'add' && <AddMaterial />}
+        {activeTab === 'simulate' && <Simulator />}
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-slate-200 text-slate-600 text-center p-4 mt-8 text-sm">
+        <p>© 2023 Tecno House - Instalaciones Eléctricas Seguras</p>
+        <p className="text-xs mt-1">Nota: Esta es una simulación educativa. Siempre consulte a un profesional certificado.</p>
+      </footer>
+    </div>
+  );
+}
+
